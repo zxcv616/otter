@@ -1,7 +1,9 @@
+`timescale 1ns / 1ps
+
 module OTTER_MCU_tb();
     // Testbench signals
     logic clk = 0;
-    logic rst;
+    logic rst = 0;
     logic intr = 0;
     logic [31:0] iobus_in;
     logic [31:0] iobus_out;
@@ -11,8 +13,10 @@ module OTTER_MCU_tb();
     // Memory array to hold instructions and data
     logic [31:0] memory [4095:0];  // 4K memory
 
-    // Clock generation
-    always #5 clk = ~clk;  // 100MHz clock
+    // Clock generation (100MHz)
+    always begin
+        #5 clk = ~clk;
+    end
 
     // DUT instantiation
     OTTER_MCU DUT(
@@ -55,35 +59,41 @@ module OTTER_MCU_tb();
             memory[iobus_addr[31:2]] <= iobus_out;
     end
 
-    // Test stimulus
+    // Test stimulus and expected results
     initial begin
-        // Dump waveforms
-        $dumpfile("dump.vcd");
-        $dumpvars(0, OTTER_MCU_tb);
-
-        // Initialize
+        // Wait 100 ns for global reset
+        #100;
+        
+        // Apply reset
         rst = 1;
         #20;
         rst = 0;
-
-        // Run for some cycles to see the program execute
-        #500;
-
-        // End simulation
-        $finish;
+        
+        // Expected values after each instruction
+        // lui x5, 0xAA055    -> x5  = 0xAA055000
+        // addi x8, x5, 0x765 -> x8  = 0xAA055765
+        // slli x10, x8, 3    -> x10 = 0x502AB2B8
+        // slt x12, x5, x8    -> x12 = 1
+        // xor x13, x8, x10   -> x13 = 0xFA2FE5DD
+        
+        // Run for enough cycles to see results
+        #1000;
+        
+        $stop;  // Use $stop for Vivado instead of $finish
     end
 
-    // Monitor important signals
+    // Monitor block for Vivado
     always @(posedge clk) begin
-        $display("Time=%0t rst=%b pc=%h", $time, rst, DUT.pc_out);
+        $timeformat(-9, 2, " ns", 20);
         if (!rst) begin
-            $display("  x5(a5)=%h", DUT.registers.ram[5]);
-            $display("  x8(s0)=%h", DUT.registers.ram[8]);
-            $display("  x10(a0)=%h", DUT.registers.ram[10]);
-            $display("  x12(a2)=%h", DUT.registers.ram[12]);
-            $display("  x13(a3)=%h", DUT.registers.ram[13]);
-            $display("  ALU_Result=%h", DUT.alu_result);
-            $display("  Current State=%h", DUT.control_fsm.current_state);
+            $display("Time=%t PC=%h", $time, DUT.pc_out);
+            $display("    x5=%h", DUT.registers.ram[5]);
+            $display("    x8=%h", DUT.registers.ram[8]);
+            $display("   x10=%h", DUT.registers.ram[10]);
+            $display("   x12=%h", DUT.registers.ram[12]);
+            $display("   x13=%h", DUT.registers.ram[13]);
+            $display("   ALU=%h", DUT.alu_result);
+            $display("  State=%h\n", DUT.control_fsm.current_state);
         end
     end
 
