@@ -25,10 +25,9 @@ module OTTER_MCU(
     logic [31:0] alu_srcA, alu_srcB;
     
     // Control signals from decoder
-    logic [3:0] alu_fun_decoded;
     logic [1:0] alu_srcA_sel;
     logic [2:0] alu_srcB_sel;
-    logic [3:0] pc_source;
+    logic [3:0] pcSource;
     logic [1:0] rf_wr_sel;
     
     // Control signals from FSM
@@ -65,7 +64,7 @@ module OTTER_MCU(
         .jal(jal_addr),
         .mtvec(32'b0),  // Not implementing trap handling
         .mepc(32'b0),   // Not implementing trap handling
-        .sel(pc_source[2:0]),  // Using only lower 3 bits
+        .sel(pcSource[2:0]),  // Using only lower 3 bits
         .out(pc_next)
     );
 
@@ -142,10 +141,10 @@ module OTTER_MCU(
         .br_eq(br_eq),
         .br_ltu(br_ltu),
         .br_lt(br_lt),
-        .ALU_FUN(alu_fun_decoded),
+        .ALU_FUN(alu_fun),
         .ALU_srcA(alu_srcA_sel),
         .ALU_srcB(alu_srcB_sel),
-        .pcSource(pc_source),
+        .pcSource(pcSource),
         .rf_wr_sel(rf_wr_sel)
     );
 
@@ -154,7 +153,7 @@ module OTTER_MCU(
         case(alu_srcA_sel)
             2'b00: alu_srcA = rs1_data;
             2'b01: alu_srcA = pc_out;
-            default: alu_srcA = 32'b0;
+            default: alu_srcA = rs1_data;
         endcase
     end
 
@@ -164,16 +163,16 @@ module OTTER_MCU(
             3'b000: alu_srcB = rs2_data;
             3'b001: alu_srcB = i_imm;
             3'b010: alu_srcB = s_imm;
-            3'b011: alu_srcB = u_imm;
-            default: alu_srcB = 32'b0;
+            3'b011: alu_srcB = pc_out;
+            default: alu_srcB = rs2_data;
         endcase
     end
 
     // Register write data multiplexer
     always_comb begin
         case(rf_wr_sel)
-            2'b00: reg_wr_data = 32'b0;
-            2'b01: reg_wr_data = pc_out + 4;
+            2'b00: reg_wr_data = pc_out + 4;
+            2'b01: reg_wr_data = 32'h0;
             2'b10: reg_wr_data = mem_data;
             2'b11: reg_wr_data = alu_result;
         endcase
@@ -184,15 +183,17 @@ module OTTER_MCU(
     assign IOBUS_ADDR = alu_result;
     assign IOBUS_WR = mem_we2;
     
-    // Instruction and data memory read assignments
+    // Memory read handling
     always_comb begin
         if (mem_rden1) 
             instruction = IOBUS_IN;
+        else 
+            instruction = 32'b0;
+            
         if (mem_rden2)
             mem_data = IOBUS_IN;
+        else 
+            mem_data = 32'b0;
     end
-
-    // Connect decoded ALU function to ALU
-    assign alu_fun = alu_fun_decoded;
 
 endmodule 
